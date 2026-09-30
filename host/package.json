@@ -1,0 +1,9 @@
+{
+  "name": "video-downloader-host",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local helper that lets the Video Downloader Chrome extension run yt-dlp.",
+  "engines": {"node": ">=18"},
+  "optionalDependencies": {"ffmpeg-static": "^5.3.0"}
+}

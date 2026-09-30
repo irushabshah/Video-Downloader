@@ -1,0 +1,5 @@
+node_modules/
+host/run-host.sh
+host/run-host.bat
+host/com.videodownloader.host.json
+*.download

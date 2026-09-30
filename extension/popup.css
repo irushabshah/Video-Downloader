@@ -1,0 +1,117 @@
+:root {
+  --bg: #ffffff;
+  --fg: #16181d;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --card: #f6f7f9;
+  --accent: #e0245e;
+  --accent-fg: #ffffff;
+  --ok: #16a34a;
+  --bad: #dc2626;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161a;
+    --fg: #eceef2;
+    --muted: #98a0ae;
+    --line: #2a2e36;
+    --card: #1d2026;
+    --accent: #ff4d83;
+    --accent-fg: #14161a;
+    --ok: #4ade80;
+    --bad: #f87171;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  width: 380px;
+  min-height: 140px;
+  max-height: 580px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 14px;
+  background: var(--bg);
+  color: var(--fg);
+  font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+[hidden] { display: none !important; }
+header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+h1 { margin: 0; font-size: 20px; letter-spacing: -0.02em; }
+h2 { margin: 16px 0 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+p { margin: 6px 0; }
+code { padding: 1px 5px; border-radius: 4px; background: var(--card); font: 12px ui-monospace, Menlo, Consolas, monospace; word-break: break-all; }
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+.badge { padding: 2px 8px; border-radius: 99px; background: var(--card); color: var(--muted); font-size: 11px; }
+.badge.ok { color: var(--ok); }
+.badge.bad { color: var(--bad); }
+
+input[type="url"], input[type="text"] {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: inherit;
+  font: inherit;
+}
+input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+button {
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+button:hover { filter: brightness(1.08); }
+button:disabled { opacity: 0.5; cursor: default; }
+button.ghost { background: var(--card); color: var(--fg); font-weight: 500; padding: 4px 9px; }
+button.link { padding: 0; background: none; color: var(--accent); font-weight: 500; }
+
+#find { display: flex; gap: 8px; }
+#find input { flex: 1; min-width: 0; }
+#find button { white-space: nowrap; }
+
+.list { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.card { padding: 10px; border-radius: 10px; background: var(--card); }
+.row { display: flex; align-items: center; gap: 8px; }
+.row > .grow { flex: 1; min-width: 0; }
+.title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sub { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.error { color: var(--bad); font-size: 12px; margin: 4px 0 0; word-break: break-word; }
+
+.preview { display: flex; gap: 10px; margin-bottom: 8px; }
+.preview img { width: 96px; height: 54px; object-fit: cover; border-radius: 6px; background: var(--line); flex: none; }
+.preview .title { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+.formats { display: grid; gap: 4px; }
+.format {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 10px; text-align: left;
+  background: var(--card); color: var(--fg); font-weight: 500;
+}
+.format:hover { outline: 1px solid var(--accent); filter: none; }
+.format .go { color: var(--accent); font-weight: 600; }
+
+.bar { height: 4px; margin-top: 6px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.bar > span { display: block; height: 100%; background: var(--accent); transition: width 0.2s; }
+.bar.indeterminate > span { width: 40% !important; animation: slide 1.1s infinite ease-in-out; }
+@keyframes slide { from { margin-left: -40%; } to { margin-left: 100%; } }
+.status-ok { color: var(--ok); }
+
+details { margin-top: 16px; }
+summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+details label { display: block; margin: 8px 0 4px; font-size: 12px; }
+ol { padding-left: 18px; margin: 6px 0 10px; }
+li { margin: 4px 0; }
+footer { margin-top: 14px; text-align: center; }
+
+#toast {
+  position: fixed; left: 14px; right: 14px; bottom: 14px;
+  padding: 8px 12px; border-radius: 8px;
+  background: var(--fg); color: var(--bg); font-size: 12px;
+}

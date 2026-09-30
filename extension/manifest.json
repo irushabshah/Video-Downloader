@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Video Downloader",
+  "version": "0.1.0",
+  "description": "Download videos from YouTube, X, Instagram, TikTok and 1,800+ other sites. Runs locally with yt-dlp.",
+  "minimum_chrome_version": "116",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuSrkkJ13yd16l4cS7MuYWTZnU0SkzL0g4WO04Nn5KzD/I7i2zXpgB+WxotXPdtU+eR0GNM2zinQfGTZPecALKPYuNIQ3tbAc5+qdEGFZab/7BYQ2Aoq/+QlY8vntKf+IJYu+lzE5Ko0Y2LPUabKN7miHfY3SA6xQRMvfYh9pyUHZYvBSRvh+sLVAd3pluYnxX2b/VluVcu7BjU62tf8qUiR72hgkDYDcuL95Niqtz7NvBOMaD++xr0aV9bsxXQb3tIzkzHcnG9fVp2ZcoF2ZRkoXAqEBFUGvcGC4gw8zuQNobDlGE3ZPGwGbb2QsQLjPK1RMJQ9Qc6xR3BVNCPQwhwIDAQAB",
+  "permissions": ["nativeMessaging", "downloads", "storage", "webRequest", "tabs"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Video Downloader",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
+}

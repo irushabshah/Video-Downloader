@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Video Downloader</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <h1>yoink</h1>
+    <span id="host-badge" class="badge" title="Local helper status">checking…</span>
+  </header>
+
+  <section id="setup" hidden>
+    <h2>One-time setup</h2>
+    <p>Chrome can't run programs by itself. A small local helper does the downloading.</p>
+    <ol>
+      <li>Open a terminal in the <code>Video-Downloader</code> folder.</li>
+      <li>Run <code id="setup-cmd"></code> <button id="copy-cmd" class="link" type="button">Copy</button></li>
+      <li>Come back here and press <strong>Check again</strong>.</li>
+    </ol>
+    <button id="retry" type="button">Check again</button>
+    <p id="setup-error" class="muted small"></p>
+  </section>
+
+  <form id="find" autocomplete="off">
+    <input id="url" type="url" placeholder="Paste a video link" spellcheck="false" required>
+    <button id="find-btn" type="submit">Find formats</button>
+  </form>
+
+  <section id="analysis" hidden></section>
+
+  <section id="detected-section" hidden>
+    <h2>Videos found on this page</h2>
+    <ul id="detected" class="list"></ul>
+  </section>
+
+  <section id="downloads-section" hidden>
+    <h2>Downloads</h2>
+    <ul id="downloads" class="list"></ul>
+  </section>
+
+  <details id="settings">
+    <summary>Settings</summary>
+    <label for="outdir">Save folder</label>
+    <input id="outdir" type="text" placeholder="~/Downloads" spellcheck="false">
+    <p class="muted small">Used for downloads made by the helper. Direct files from "Videos found" go to Chrome's download folder.</p>
+  </details>
+
+  <footer class="muted small">Only download what you have the right to keep.</footer>
+  <div id="toast" role="status" hidden></div>
+
+  <script src="popup.js" type="module"></script>
+</body>
+</html>
