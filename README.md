@@ -17,6 +17,8 @@ The extension also spots plain video files and streams (`.mp4`, `.webm`, `.m3u8`
 
 You need [Node.js](https://nodejs.org) 18 or newer.
 
+On a Mac, you also need [Homebrew](https://brew.sh). The install script uses it to install `yt-dlp` and ffmpeg. (The downloadable `yt-dlp` is blocked by macOS when Chrome starts it.)
+
 1. Install the helper.
    - Mac or Linux: open a terminal in this folder and run `./scripts/install.sh`
    - Windows: open PowerShell in this folder and run `powershell -ExecutionPolicy Bypass -File scripts\install.ps1`
@@ -28,7 +30,7 @@ You need [Node.js](https://nodejs.org) 18 or newer.
 
 The install script copies the helper to `~/.video-downloader/host`. You can keep this project folder anywhere, but don't delete the `extension` folder.
 
-The first download fetches `yt-dlp` into `~/.video-downloader/bin`. This takes a few seconds. If you already have `yt-dlp` or `ffmpeg` installed, the helper uses yours.
+On Windows and Linux, the first download fetches `yt-dlp` into `~/.video-downloader/bin`. This takes a few seconds. If you already have `yt-dlp` or `ffmpeg` installed, the helper uses yours.
 
 ## Use it
 

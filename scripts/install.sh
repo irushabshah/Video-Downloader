@@ -53,6 +53,25 @@ if (( NODE_MAJOR < 18 )); then
   exit 1
 fi
 
+# 1b. On a Mac, yt-dlp must come from Homebrew. The downloadable copy is blocked by macOS
+#     when Chrome starts it ("Python.framework is damaged").
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  for brew_dir in /opt/homebrew/bin /usr/local/bin; do [[ -x "$brew_dir/brew" ]] && export PATH="$brew_dir:$PATH"; done
+  if ! command -v yt-dlp >/dev/null 2>&1; then
+    if command -v brew >/dev/null 2>&1; then
+      echo "Installing yt-dlp with Homebrew…"
+      brew install yt-dlp
+    else
+      echo "Homebrew is missing. Install it from https://brew.sh, then run this script again." >&2
+      exit 1
+    fi
+  fi
+  if ! command -v ffmpeg >/dev/null 2>&1 && command -v brew >/dev/null 2>&1; then
+    echo "Installing ffmpeg with Homebrew…"
+    brew install ffmpeg || true
+  fi
+fi
+
 # 2. Copy the helper to its own folder.
 mkdir -p "$HOST_DIR"
 cp "$SRC_DIR/host.js" "$SRC_DIR/package.json" "$HOST_DIR/"
@@ -69,6 +88,7 @@ fi
 # 4. Wrapper script. Chrome starts hosts with a bare PATH, so pin the full node path.
 cat > "$WRAPPER" <<WRAP
 #!/bin/sh
+export PATH="$PATH"
 exec "$NODE_BIN" "$HOST_DIR/host.js" 2>>"$LOG"
 WRAP
 chmod +x "$WRAPPER"
