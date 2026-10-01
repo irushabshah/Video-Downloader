@@ -239,6 +239,20 @@ function commandWorks(cmd, args) {
   })
 }
 
+/** macOS blocks downloaded programs it has not verified. Clear that mark on our own copy. */
+function stripQuarantine(file) {
+  if (process.platform !== 'darwin') return Promise.resolve()
+  return new Promise(resolve => {
+    try {
+      const child = spawn('xattr', ['-d', 'com.apple.quarantine', file], {stdio: 'ignore'})
+      child.on('error', () => resolve())
+      child.on('close', () => resolve())
+    } catch {
+      resolve()
+    }
+  })
+}
+
 /** System yt-dlp first, then our own copy, then download the standalone binary. */
 function getYtDlp(onStatus = () => {}) {
   ytdlpPromise ??= ensureYtDlp(onStatus).catch(error => {
@@ -252,6 +266,7 @@ async function ensureYtDlp(onStatus) {
   if (await commandWorks('yt-dlp', ['--version'])) return 'yt-dlp'
 
   const local = path.join(BIN_DIR, process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp')
+  await stripQuarantine(local) // before the first run, or macOS shows its "Not Opened" warning
   if (await commandWorks(local, ['--version'])) return local
 
   onStatus('First run: fetching yt-dlp…')
@@ -265,6 +280,7 @@ async function ensureYtDlp(onStatus) {
   await pipeline(Readable.fromWeb(response.body), createWriteStream(tmp))
   await fs.chmod(tmp, 0o755)
   await fs.rename(tmp, local)
+  await stripQuarantine(local)
   return local
 }
 
