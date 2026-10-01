@@ -26,6 +26,8 @@ You need [Node.js](https://nodejs.org) 18 or newer.
 5. Click the puzzle-piece icon in the toolbar and pin **Video Downloader**.
 6. Open the popup. The badge should say **helper ready**.
 
+The install script copies the helper to `~/.video-downloader/host`. You can keep this project folder anywhere, but don't delete the `extension` folder.
+
 The first download fetches `yt-dlp` into `~/.video-downloader/bin`. This takes a few seconds. If you already have `yt-dlp` or `ffmpeg` installed, the helper uses yours.
 
 ## Use it
@@ -41,7 +43,7 @@ Files go to `~/Downloads`. You can change the folder under **Settings** in the p
 ## If something goes wrong
 
 - **Badge says "helper not installed".** Run the install script from step 1, then press **Check again**.
-- **Badge says "helper problem".** Open `chrome://extensions`, click the reload arrow on this extension, and try again.
+- **Badge says "helper problem".** Look at the log: `~/.video-downloader/host.log`. Then open `chrome://extensions`, click the reload arrow on this extension, and try again.
 - **A site stopped working.** Sites change often. Delete `~/.video-downloader/bin/yt-dlp` and run a download again. It fetches the newest version. If you installed `yt-dlp` yourself, update it with your package manager.
 - **No 1080p, or mp3 fails.** ffmpeg is missing. Install it, or re-run the install script.
 - **Other Chromium browsers.** The install script also registers Brave, Edge and Chromium when it finds them. The extension works the same way there.

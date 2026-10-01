@@ -9,8 +9,12 @@ HOST_NAME="com.videodownloader.host"
 EXTENSION_ID="dkeiibggiepjfgldgpjnlliajcpnbkma"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-HOST_DIR="$ROOT/host"
+SRC_DIR="$ROOT/host"
+# The helper runs from here, not from the project folder. macOS can block Chrome's
+# helpers from reading Documents, Desktop and Downloads.
+HOST_DIR="$HOME/.video-downloader/host"
 WRAPPER="$HOST_DIR/run-host.sh"
+LOG="$HOME/.video-downloader/host.log"
 
 case "$(uname -s)" in
   Darwin)
@@ -32,7 +36,7 @@ esac
 
 if [[ "${1:-}" == "--uninstall" ]]; then
   for base in "${BASES[@]}"; do rm -f "$base/NativeMessagingHosts/$HOST_NAME.json"; done
-  rm -f "$WRAPPER"
+  rm -rf "$HOST_DIR"
   echo "Removed the helper registration. You can delete this folder now."
   exit 0
 fi
@@ -49,7 +53,12 @@ if (( NODE_MAJOR < 18 )); then
   exit 1
 fi
 
-# 2. ffmpeg: needed to merge high-resolution video and audio, and for mp3.
+# 2. Copy the helper to its own folder.
+mkdir -p "$HOST_DIR"
+cp "$SRC_DIR/host.js" "$SRC_DIR/package.json" "$HOST_DIR/"
+[[ -f "$SRC_DIR/package-lock.json" ]] && cp "$SRC_DIR/package-lock.json" "$HOST_DIR/"
+
+# 3. ffmpeg: needed to merge high-resolution video and audio, and for mp3.
 #    Skip the bundled copy if the system already has one.
 if ! command -v ffmpeg >/dev/null 2>&1; then
   echo "ffmpeg not found on PATH. Fetching a bundled copy…"
@@ -57,14 +66,14 @@ if ! command -v ffmpeg >/dev/null 2>&1; then
     || echo "Could not fetch ffmpeg. Basic downloads still work; install ffmpeg yourself for high resolutions and mp3."
 fi
 
-# 3. Wrapper script. Chrome starts hosts with a bare PATH, so pin the full node path.
+# 4. Wrapper script. Chrome starts hosts with a bare PATH, so pin the full node path.
 cat > "$WRAPPER" <<WRAP
 #!/bin/sh
-exec "$NODE_BIN" "$HOST_DIR/host.js"
+exec "$NODE_BIN" "$HOST_DIR/host.js" 2>>"$LOG"
 WRAP
 chmod +x "$WRAPPER"
 
-# 4. Tell each browser about the helper.
+# 5. Tell each browser about the helper.
 MANIFEST="$(cat <<JSON
 {
   "name": "$HOST_NAME",

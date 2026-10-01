@@ -9,7 +9,10 @@ $HostName = 'com.videodownloader.host'
 $ExtensionId = 'dkeiibggiepjfgldgpjnlliajcpnbkma'
 
 $Root = Split-Path -Parent $PSScriptRoot
-$HostDir = Join-Path $Root 'host'
+$SrcDir = Join-Path $Root 'host'
+# The helper runs from its own folder, not from the project folder.
+$HostDir = Join-Path $env:USERPROFILE '.video-downloader\host'
+$Log = Join-Path $env:USERPROFILE '.video-downloader\host.log'
 $Wrapper = Join-Path $HostDir 'run-host.bat'
 $ManifestPath = Join-Path $HostDir "$HostName.json"
 $RegKeys = @(
@@ -21,7 +24,7 @@ $RegKeys = @(
 
 if ($Uninstall) {
   foreach ($key in $RegKeys) { Remove-Item -Path $key -ErrorAction SilentlyContinue }
-  Remove-Item -Path $Wrapper, $ManifestPath -ErrorAction SilentlyContinue
+  Remove-Item -Path $HostDir -Recurse -ErrorAction SilentlyContinue
   Write-Host 'Removed the helper registration. You can delete this folder now.'
   exit 0
 }
@@ -34,7 +37,11 @@ if (-not $node) {
 $major = [int](& $node.Source -p 'process.versions.node.split(".")[0]')
 if ($major -lt 18) { Write-Error "Node $major is too old. Install Node 18 or newer and run this again." }
 
-# 2. ffmpeg: needed to merge high-resolution video and audio, and for mp3.
+# 2. Copy the helper to its own folder.
+New-Item -ItemType Directory -Force -Path $HostDir | Out-Null
+Copy-Item (Join-Path $SrcDir '*') $HostDir -Recurse -Force -Exclude node_modules
+
+# 3. ffmpeg: needed to merge high-resolution video and audio, and for mp3.
 if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
   Write-Host 'ffmpeg not found on PATH. Fetching a bundled copy...'
   try {
@@ -45,10 +52,10 @@ if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
   } finally { Pop-Location }
 }
 
-# 3. Wrapper script. Chrome starts hosts with a bare PATH, so pin the full node path.
-"@echo off`r`n`"$($node.Source)`" `"$(Join-Path $HostDir 'host.js')`"`r`n" | Set-Content -Path $Wrapper -Encoding ASCII
+# 4. Wrapper script. Chrome starts hosts with a bare PATH, so pin the full node path.
+"@echo off`r`n`"$($node.Source)`" `"$(Join-Path $HostDir 'host.js')`" 2>>`"$Log`"`r`n" | Set-Content -Path $Wrapper -Encoding ASCII
 
-# 4. Tell each browser about the helper.
+# 5. Tell each browser about the helper.
 $manifest = [ordered]@{
   name = $HostName
   description = 'Video Downloader helper (runs yt-dlp)'

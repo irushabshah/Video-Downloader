@@ -54,6 +54,15 @@ process.stdin.on('data', chunk => {
 // Chrome closed the port (popup/worker gone): stop everything and leave.
 process.stdin.on('end', shutdown)
 process.on('SIGTERM', shutdown)
+// Anything unexpected goes to stderr (the install script logs it to ~/.video-downloader/host.log).
+process.on('uncaughtException', error => {
+  console.error(new Date().toISOString(), 'uncaught:', error?.stack ?? error)
+  try {
+    send({type: 'error', message: `The helper crashed: ${error?.message ?? error}`})
+  } finally {
+    process.exit(1)
+  }
+})
 
 function shutdown() {
   for (const job of jobs.values()) job.child?.kill('SIGTERM')
