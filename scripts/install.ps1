@@ -1,19 +1,23 @@
-# Registers the Video Downloader helper with Chrome (Windows).
+# Installs the Yoink helper and registers it with Chrome (Windows).
 # Usage: powershell -ExecutionPolicy Bypass -File scripts\install.ps1
 #        powershell -ExecutionPolicy Bypass -File scripts\install.ps1 -Uninstall
 param([switch]$Uninstall)
 $ErrorActionPreference = 'Stop'
 
-$HostName = 'com.videodownloader.host'
-# Fixed by the "key" in extension\manifest.json, so it is the same on every machine.
+$HostName = 'com.yoink.helper'
+# The unpacked (developer) copy: fixed by the "key" in extension\manifest.json.
 $ExtensionId = 'dkeiibggiepjfgldgpjnlliajcpnbkma'
+# The Chrome Web Store copy gets its own ID. Paste it here once the store shows it.
+$StoreExtensionId = ''
+# Earlier name of this helper, cleaned up on install.
+$OldHostName = 'com.videodownloader.host'
 
 $Root = Split-Path -Parent $PSScriptRoot
 $SrcDir = Join-Path $Root 'host'
 # The helper runs from its own folder, not from the project folder.
-$HostDir = Join-Path $env:USERPROFILE '.video-downloader\host'
-$Log = Join-Path $env:USERPROFILE '.video-downloader\host.log'
-$Wrapper = Join-Path $HostDir 'run-host.bat'
+$HostDir = Join-Path $env:USERPROFILE '.yoink\helper'
+$Log = Join-Path $env:USERPROFILE '.yoink\helper.log'
+$Wrapper = Join-Path $HostDir 'run-helper.bat'
 $ManifestPath = Join-Path $HostDir "$HostName.json"
 $RegKeys = @(
   "HKCU:\Software\Google\Chrome\NativeMessagingHosts\$HostName",
@@ -25,7 +29,7 @@ $RegKeys = @(
 if ($Uninstall) {
   foreach ($key in $RegKeys) { Remove-Item -Path $key -ErrorAction SilentlyContinue }
   Remove-Item -Path $HostDir -Recurse -ErrorAction SilentlyContinue
-  Write-Host 'Removed the helper registration. You can delete this folder now.'
+  Write-Host 'Removed the Yoink helper. You can delete this folder now.'
   exit 0
 }
 
@@ -37,7 +41,9 @@ if (-not $node) {
 $major = [int](& $node.Source -p 'process.versions.node.split(".")[0]')
 if ($major -lt 18) { Write-Error "Node $major is too old. Install Node 18 or newer and run this again." }
 
-# 2. Copy the helper to its own folder.
+# 2. Copy the helper to its own folder (and drop the old one, if any).
+foreach ($key in $RegKeys) { Remove-Item -Path ($key -replace [regex]::Escape($HostName), $OldHostName) -ErrorAction SilentlyContinue }
+Remove-Item -Path (Join-Path $env:USERPROFILE '.video-downloader\host') -Recurse -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $HostDir | Out-Null
 Copy-Item (Join-Path $SrcDir '*') $HostDir -Recurse -Force -Exclude node_modules
 
@@ -56,12 +62,14 @@ if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
 "@echo off`r`n`"$($node.Source)`" `"$(Join-Path $HostDir 'host.js')`" 2>>`"$Log`"`r`n" | Set-Content -Path $Wrapper -Encoding ASCII
 
 # 5. Tell each browser about the helper.
+$origins = @("chrome-extension://$ExtensionId/")
+if ($StoreExtensionId) { $origins += "chrome-extension://$StoreExtensionId/" }
 $manifest = [ordered]@{
   name = $HostName
-  description = 'Video Downloader helper (runs yt-dlp)'
+  description = 'Yoink helper (runs yt-dlp)'
   path = $Wrapper
   type = 'stdio'
-  allowed_origins = @("chrome-extension://$ExtensionId/")
+  allowed_origins = $origins
 } | ConvertTo-Json
 Set-Content -Path $ManifestPath -Value $manifest -Encoding ASCII
 
@@ -76,4 +84,4 @@ foreach ($key in $RegKeys) {
 }
 
 Write-Host ''
-Write-Host 'Done. Now open the extension popup and press "Check again".'
+Write-Host 'Done. Now open the Yoink popup and press "Check again".'

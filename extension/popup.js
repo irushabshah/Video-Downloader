@@ -20,6 +20,7 @@ function h(tag, props = {}, ...children) {
 }
 
 const send = message => chrome.runtime.sendMessage(message)
+const HELPER_URL = 'https://github.com/irushabshah/Video-Downloader/releases/latest'
 
 let snapshot = {host: {status: 'unknown'}, analyses: {}, jobs: {}}
 let tab
@@ -117,7 +118,9 @@ function renderAnalysis() {
   }
 
   const info = analysis.data
-  const meta = [info.uploader, formatDuration(info.duration), info.site].filter(Boolean).join(' · ')
+  // yt-dlp's fallback extractors have names that mean nothing to people
+  const site = /^(Generic|HTML5MediaEmbed)$/.test(info.site ?? '') ? undefined : info.site
+  const meta = [info.uploader, formatDuration(info.duration), site].filter(Boolean).join(' · ')
   box.append(
     h(
       'div',
@@ -141,7 +144,6 @@ function renderAnalysis() {
                 probeId: info.probeId,
                 choiceIndex: choice.index,
                 title: info.title,
-                outDir: $('#outdir').value.trim() || undefined,
               })
               toast('Download started')
             },
@@ -166,7 +168,7 @@ function renderDetected() {
           'div',
           {class: 'grow'},
           h('div', {class: 'title', title: item.url}, shortUrl(item.url)),
-          h('div', {class: 'sub'}, [item.kind === 'stream' ? 'stream' : 'file', formatBytes(item.size)].filter(Boolean).join(' · ')),
+          h('div', {class: 'sub'}, detectedLine(item)),
         ),
         h('button', {class: 'ghost', type: 'button', onclick: () => downloadDetected(item)}, 'Download'),
       ),
@@ -174,15 +176,33 @@ function renderDetected() {
   )
 }
 
+const KIND_LABELS = {pair: 'video + audio', file: 'video file', stream: 'stream', audio: 'audio'}
+
+function detectedLine(item) {
+  const size = item.size ? `${item.estimated ? '~' : ''}${formatBytes(item.size)}` : undefined
+  return [
+    KIND_LABELS[item.kind] ?? item.kind,
+    item.height ? `${item.height}p` : undefined,
+    item.live ? 'live' : formatDuration(item.duration),
+    size,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
+
 async function downloadDetected(item) {
   const title = tab?.title || shortUrl(item.url)
+  if (item.kind === 'pair') {
+    await send({type: 'merge', videoUrl: item.videoUrl, audioUrl: item.audioUrl, title, referer: tab?.url, totalBytes: item.size})
+    toast('Download started')
+    return
+  }
   if (item.kind === 'stream') {
     await send({
       type: 'download',
       url: item.url,
       title,
       referer: tab?.url,
-      outDir: $('#outdir').value.trim() || undefined,
     })
     toast('Download started')
     return
@@ -251,6 +271,7 @@ function setupCommand() {
 }
 
 async function init() {
+  $('#helper-link').href = HELPER_URL
   $('#setup-cmd').textContent = setupCommand()
   $('#copy-cmd').addEventListener('click', async () => {
     await navigator.clipboard.writeText(setupCommand())
@@ -272,6 +293,14 @@ async function init() {
   const {outDir} = await chrome.storage.local.get('outDir')
   $('#outdir').value = outDir ?? ''
   $('#outdir').addEventListener('change', () => chrome.storage.local.set({outDir: $('#outdir').value.trim()}))
+  const {useLogins = true} = await chrome.storage.local.get('useLogins')
+  $('#use-logins').checked = useLogins
+  $('#use-logins').addEventListener('change', () => chrome.storage.local.set({useLogins: $('#use-logins').checked}))
+
+  const shortcut = (await chrome.commands.getAll()).find(c => c.name === 'download-page')?.shortcut
+  if (shortcut) {
+    $('#tip').replaceChildren('Tip: right-click any video, or press ', h('strong', {}, shortcut), ' to download this page.')
+  }
 
   ;[tab] = await chrome.tabs.query({active: true, currentWindow: true})
   if (tab?.url && /^https?:/.test(tab.url)) $('#url').value = tab.url
@@ -283,9 +312,13 @@ async function init() {
 }
 
 chrome.runtime.onMessage.addListener(message => {
-  if (message?.type !== 'state') return
-  snapshot = message.state
-  render()
+  if (message?.type === 'state') {
+    snapshot = message.state
+    render()
+  } else if (message?.type === 'detected' && message.tabId === tab?.id) {
+    detected = message.items
+    renderDetected()
+  }
 })
 
 init()

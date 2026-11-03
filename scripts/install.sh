@@ -1,20 +1,24 @@
 #!/usr/bin/env bash
-# Registers the Video Downloader helper with Chrome (macOS and Linux).
+# Installs the Yoink helper and registers it with Chrome (macOS and Linux).
 # Usage: ./scripts/install.sh            install
 #        ./scripts/install.sh --uninstall
 set -euo pipefail
 
-HOST_NAME="com.videodownloader.host"
-# Fixed by the "key" in extension/manifest.json, so it is the same on every machine.
+HOST_NAME="com.yoink.helper"
+# The unpacked (developer) copy: fixed by the "key" in extension/manifest.json.
 EXTENSION_ID="dkeiibggiepjfgldgpjnlliajcpnbkma"
+# The Chrome Web Store copy gets its own ID. Paste it here once the store shows it.
+STORE_EXTENSION_ID=""
+# Earlier name of this helper, cleaned up on install.
+OLD_HOST_NAME="com.videodownloader.host"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC_DIR="$ROOT/host"
 # The helper runs from here, not from the project folder. macOS can block Chrome's
 # helpers from reading Documents, Desktop and Downloads.
-HOST_DIR="$HOME/.video-downloader/host"
-WRAPPER="$HOST_DIR/run-host.sh"
-LOG="$HOME/.video-downloader/host.log"
+HOST_DIR="$HOME/.yoink/helper"
+WRAPPER="$HOST_DIR/run-helper.sh"
+LOG="$HOME/.yoink/helper.log"
 
 case "$(uname -s)" in
   Darwin)
@@ -37,7 +41,7 @@ esac
 if [[ "${1:-}" == "--uninstall" ]]; then
   for base in "${BASES[@]}"; do rm -f "$base/NativeMessagingHosts/$HOST_NAME.json"; done
   rm -rf "$HOST_DIR"
-  echo "Removed the helper registration. You can delete this folder now."
+  echo "Removed the Yoink helper. You can delete this folder now."
   exit 0
 fi
 
@@ -72,7 +76,9 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
   fi
 fi
 
-# 2. Copy the helper to its own folder.
+# 2. Copy the helper to its own folder (and drop the old one, if any).
+for base in "${BASES[@]}"; do rm -f "$base/NativeMessagingHosts/$OLD_HOST_NAME.json"; done
+rm -rf "$HOME/.video-downloader/host"
 mkdir -p "$HOST_DIR"
 cp "$SRC_DIR/host.js" "$SRC_DIR/package.json" "$HOST_DIR/"
 [[ -f "$SRC_DIR/package-lock.json" ]] && cp "$SRC_DIR/package-lock.json" "$HOST_DIR/"
@@ -94,13 +100,15 @@ WRAP
 chmod +x "$WRAPPER"
 
 # 5. Tell each browser about the helper.
+ORIGINS="\"chrome-extension://$EXTENSION_ID/\""
+[[ -n "$STORE_EXTENSION_ID" ]] && ORIGINS="$ORIGINS, \"chrome-extension://$STORE_EXTENSION_ID/\""
 MANIFEST="$(cat <<JSON
 {
   "name": "$HOST_NAME",
-  "description": "Video Downloader helper (runs yt-dlp)",
+  "description": "Yoink helper (runs yt-dlp)",
   "path": "$WRAPPER",
   "type": "stdio",
-  "allowed_origins": ["chrome-extension://$EXTENSION_ID/"]
+  "allowed_origins": [$ORIGINS]
 }
 JSON
 )"
@@ -114,4 +122,4 @@ for base in "${BASES[@]}"; do
 done
 
 echo
-echo "Done. Now open the extension popup and press \"Check again\"."
+echo "Done. Now open the Yoink popup and press \"Check again\"."

@@ -1,4 +1,4 @@
-// Native messaging host for the Video Downloader extension.
+// Yoink helper: the native messaging host for the Yoink extension.
 //
 // Chrome starts this process and talks to it over stdin/stdout using the
 // native messaging protocol: each message is JSON, prefixed by a 4-byte
@@ -14,8 +14,8 @@ import path from 'node:path'
 import {Readable} from 'node:stream'
 import {pipeline} from 'node:stream/promises'
 
-const HOST_VERSION = '0.1.0'
-const BIN_DIR = path.join(os.homedir(), '.video-downloader', 'bin')
+const HOST_VERSION = '0.2.0'
+const BIN_DIR = path.join(os.homedir(), '.yoink', 'bin')
 const RELEASE_BASE = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download'
 const DEFAULT_OUT_DIR = path.join(os.homedir(), 'Downloads')
 const MAX_VIDEO_CHOICES = 8
@@ -54,7 +54,7 @@ process.stdin.on('data', chunk => {
 // Chrome closed the port (popup/worker gone): stop everything and leave.
 process.stdin.on('end', shutdown)
 process.on('SIGTERM', shutdown)
-// Anything unexpected goes to stderr (the install script logs it to ~/.video-downloader/host.log).
+// Anything unexpected goes to stderr (the install script logs it to ~/.yoink/helper.log).
 process.on('uncaughtException', error => {
   console.error(new Date().toISOString(), 'uncaught:', error?.stack ?? error)
   try {
@@ -66,7 +66,7 @@ process.on('uncaughtException', error => {
 
 function shutdown() {
   for (const job of jobs.values()) job.child?.kill('SIGTERM')
-  void cleanupProbes().finally(() => process.exit(0))
+  void Promise.allSettled([cleanupProbes(), ...[...tempFiles].map(removeTemp)]).finally(() => process.exit(0))
 }
 
 // ---------------------------------------------------------------------------
@@ -77,6 +77,8 @@ function shutdown() {
 const jobs = new Map()
 /** probeId -> {infoJsonPath, choices} for analyzed URLs */
 const probes = new Map()
+/** cookie files we wrote, removed when done or on exit */
+const tempFiles = new Set()
 let ytdlpPromise
 let ffmpegPromise
 
@@ -103,6 +105,8 @@ async function handle(message) {
       return handleProbe(message)
     case 'download':
       return handleDownload(message)
+    case 'merge':
+      return handleMerge(message)
     case 'cancel':
       jobs.get(message.id)?.cancel()
       return
@@ -126,10 +130,17 @@ function parseHttpUrl(value) {
   return url.href
 }
 
-async function handleProbe({id, url}) {
+async function handleProbe({id, url, cookies}) {
   const href = parseHttpUrl(url)
   const ytdlp = await getYtDlp(status => send({type: 'status', id, message: status}))
-  const {info, infoJsonPath} = await probe(ytdlp, href)
+  const cookieFile = await writeCookieFile(cookies)
+  let result
+  try {
+    result = await probe(ytdlp, href, cookieFile)
+  } finally {
+    await removeTemp(cookieFile)
+  }
+  const {info, infoJsonPath} = result
   const choices = buildChoices(info)
   const probeId = `${process.pid}-${Date.now()}-${probes.size}`
   probes.set(probeId, {infoJsonPath, choices})
@@ -146,7 +157,7 @@ async function handleProbe({id, url}) {
   })
 }
 
-async function handleDownload({id, url, probeId, choiceIndex, outDir, referer}) {
+async function handleDownload({id, url, probeId, choiceIndex, outDir, referer, cookies}) {
   if (jobs.has(id)) throw new Error('That download is already running.')
   const href = parseHttpUrl(url)
   const probed = probeId ? probes.get(probeId) : undefined
@@ -155,6 +166,7 @@ async function handleDownload({id, url, probeId, choiceIndex, outDir, referer}) 
   const ytdlp = await getYtDlp(status => send({type: 'status', id, message: status}))
   const ffmpeg = await getFfmpeg()
 
+  const cookieFile = await writeCookieFile(cookies)
   send({type: 'started', id})
   try {
     const filepath = await download(
@@ -166,6 +178,7 @@ async function handleDownload({id, url, probeId, choiceIndex, outDir, referer}) 
         choice,
         outDir: dir,
         referer: typeof referer === 'string' && /^https?:\/\//.test(referer) ? referer : undefined,
+        cookieFile,
         jobId: id,
       },
       {
@@ -176,7 +189,160 @@ async function handleDownload({id, url, probeId, choiceIndex, outDir, referer}) 
     send({type: 'done', id, filepath})
   } catch (error) {
     send({type: 'failed', id, message: error?.message ?? String(error), cancelled: error?.cancelled === true})
+  } finally {
+    await removeTemp(cookieFile)
   }
+}
+
+// ---------------------------------------------------------------------------
+// Logged-in downloads: the extension hands us the page's cookies. They go into
+// a private temp file for yt-dlp, which is deleted as soon as the command ends.
+// ---------------------------------------------------------------------------
+
+function oneLine(value) {
+  return String(value ?? '').replace(/[\t\r\n]/g, '')
+}
+
+async function writeCookieFile(cookies) {
+  if (!Array.isArray(cookies) || cookies.length === 0) return undefined
+  const lines = ['# Netscape HTTP Cookie File']
+  for (const c of cookies) {
+    if (!c || typeof c.name !== 'string' || typeof c.value !== 'string' || typeof c.domain !== 'string') continue
+    const domain = oneLine(c.domain)
+    lines.push(
+      [
+        `${c.httpOnly ? '#HttpOnly_' : ''}${domain}`,
+        domain.startsWith('.') ? 'TRUE' : 'FALSE',
+        oneLine(c.path || '/'),
+        c.secure ? 'TRUE' : 'FALSE',
+        Math.floor(Number(c.expirationDate) || 0),
+        oneLine(c.name),
+        oneLine(c.value),
+      ].join('\t'),
+    )
+  }
+  const file = path.join(os.tmpdir(), `yoink-cookies-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.txt`)
+  await fs.writeFile(file, lines.join('\n') + '\n', {mode: 0o600})
+  tempFiles.add(file)
+  return file
+}
+
+async function removeTemp(file) {
+  if (!file) return
+  tempFiles.delete(file)
+  await fs.rm(file, {force: true})
+}
+
+// ---------------------------------------------------------------------------
+// Joining a separate video track and audio track (sites that serve them as two
+// files). ffmpeg reads both links and copies them into one file, no re-encode.
+// ---------------------------------------------------------------------------
+
+function sanitizeFilename(name) {
+  return (
+    String(name ?? '')
+      .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 80) || 'video'
+  )
+}
+
+async function uniquePath(dir, base, ext) {
+  for (let n = 0; n < 1000; n++) {
+    const candidate = path.join(dir, `${base}${n ? ` (${n})` : ''}.${ext}`)
+    try {
+      await fs.access(candidate)
+    } catch {
+      return candidate
+    }
+  }
+  throw new Error('Could not find a free file name.')
+}
+
+async function handleMerge({id, videoUrl, audioUrl, title, outDir, referer, userAgent, videoCookie, audioCookie, totalBytes}) {
+  if (jobs.has(id)) throw new Error('That download is already running.')
+  const video = parseHttpUrl(videoUrl)
+  const audio = parseHttpUrl(audioUrl)
+  const ffmpeg = await getFfmpeg()
+  if (!ffmpeg.available) throw new Error('Joining video and audio needs ffmpeg. Run the Yoink installer again.')
+  const dir = await resolveOutDir(outDir)
+  const webm = [video, audio].some(link => /\.webm$/i.test(new URL(link).pathname))
+  const ext = webm ? 'mkv' : 'mp4'
+  const target = await uniquePath(dir, sanitizeFilename(title), ext)
+
+  const inputArgs = (link, cookie) => {
+    const headers = [
+      typeof referer === 'string' && /^https?:\/\//.test(referer) ? `Referer: ${oneLine(referer)}` : undefined,
+      cookie ? `Cookie: ${oneLine(cookie)}` : undefined,
+    ].filter(Boolean)
+    return [
+      ...(userAgent ? ['-user_agent', oneLine(userAgent)] : []),
+      ...(headers.length ? ['-headers', `${headers.join('\r\n')}\r\n`] : []),
+      '-i',
+      link,
+    ]
+  }
+  const args = [
+    '-hide_banner',
+    '-nostdin',
+    '-loglevel',
+    'error',
+    '-nostats',
+    '-progress',
+    'pipe:1',
+    ...inputArgs(video, videoCookie),
+    ...inputArgs(audio, audioCookie),
+    '-map',
+    '0:v:0',
+    '-map',
+    '1:a:0',
+    '-c',
+    'copy',
+    ...(ext === 'mp4' ? ['-movflags', '+faststart'] : []),
+    '-y',
+    target,
+  ]
+
+  send({type: 'started', id})
+  const child = spawn(ffmpeg.location ?? 'ffmpeg', args)
+  const job = {
+    child,
+    aborted: false,
+    cancel() {
+      job.aborted = true
+      child.kill('SIGTERM')
+    },
+  }
+  jobs.set(id, job)
+
+  let stderr = ''
+  let buffer = ''
+  const estimate = Number(totalBytes) > 0 ? Number(totalBytes) : undefined
+  child.stdout.on('data', chunk => {
+    buffer += chunk.toString()
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ''
+    for (const line of lines) {
+      const size = /^total_size=(\d+)/.exec(line.trim())?.[1]
+      if (size) send({type: 'progress', id, downloadedBytes: Number(size), totalBytes: estimate, part: 0, totalParts: 1})
+    }
+  })
+  child.stderr.on('data', chunk => (stderr += chunk))
+  child.on('error', error => {
+    jobs.delete(id)
+    send({type: 'failed', id, message: error.message})
+  })
+  child.on('close', async code => {
+    jobs.delete(id)
+    if (job.aborted || code !== 0) await fs.rm(target, {force: true})
+    if (job.aborted) send({type: 'failed', id, message: 'Download cancelled.', cancelled: true})
+    else if (code === 0) send({type: 'done', id, filepath: target})
+    else {
+      const reason = stderr.trim().split('\n').filter(Boolean).at(-1)
+      send({type: 'failed', id, message: reason ? `Could not join the tracks: ${reason}` : `ffmpeg exited with code ${code}.`})
+    }
+  })
 }
 
 async function resolveOutDir(requested) {
@@ -298,9 +464,10 @@ async function findFfmpeg() {
 // Probe + format choices (from yoinks/src/lib/ytdlp.ts)
 // ---------------------------------------------------------------------------
 
-async function probe(ytdlp, url) {
+async function probe(ytdlp, url, cookieFile) {
   const stdout = await new Promise((resolve, reject) => {
-    const child = spawn(ytdlp, ['-J', '--no-playlist', '--no-warnings', '--', url])
+    const cookieArgs = cookieFile ? ['--cookies', cookieFile] : []
+    const child = spawn(ytdlp, ['-J', '--no-playlist', '--no-warnings', ...cookieArgs, '--', url])
     let out = ''
     let stderr = ''
     child.stdout.on('data', chunk => (out += chunk))
@@ -318,7 +485,7 @@ async function probe(ytdlp, url) {
   } catch {
     throw new Error('Could not read the video info from yt-dlp.')
   }
-  const infoJsonPath = path.join(os.tmpdir(), `video-downloader-info-${process.pid}-${Date.now()}.json`)
+  const infoJsonPath = path.join(os.tmpdir(), `yoink-info-${process.pid}-${Date.now()}.json`)
   await fs.writeFile(infoJsonPath, stdout)
   return {info, infoJsonPath}
 }
@@ -417,6 +584,7 @@ function download(opts, handlers) {
     path.join(opts.outDir, '%(title).60s.%(ext)s'),
   ]
   if (opts.referer) args.push('--referer', opts.referer)
+  if (opts.cookieFile) args.push('--cookies', opts.cookieFile)
   if (opts.ffmpegLocation) args.push('--ffmpeg-location', opts.ffmpegLocation)
   // "--" so a link can never be read as an option
   if (!opts.infoJsonPath) args.push('--', opts.url)

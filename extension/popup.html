@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Video Downloader</title>
+  <title>Yoink</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
@@ -14,10 +14,10 @@
 
   <section id="setup" hidden>
     <h2>One-time setup</h2>
-    <p>Chrome can't run programs by itself. A small local helper does the downloading.</p>
+    <p>Chrome can't run programs by itself. The free Yoink helper does the downloading, on your computer.</p>
     <ol>
-      <li>Open a terminal in the <code>Video-Downloader</code> folder.</li>
-      <li>Run <code id="setup-cmd"></code> <button id="copy-cmd" class="link" type="button">Copy</button></li>
+      <li><a id="helper-link" href="#" target="_blank" rel="noopener">Download the Yoink helper</a> and unzip it.</li>
+      <li>Open a terminal in the unzipped folder and run <code id="setup-cmd"></code> <button id="copy-cmd" class="link" type="button">Copy</button></li>
       <li>Come back here and press <strong>Check again</strong>.</li>
     </ol>
     <button id="retry" type="button">Check again</button>
@@ -45,10 +45,15 @@
     <summary>Settings</summary>
     <label for="outdir">Save folder</label>
     <input id="outdir" type="text" placeholder="~/Downloads" spellcheck="false">
-    <p class="muted small">Used for downloads made by the helper. Direct files from "Videos found" go to Chrome's download folder.</p>
+    <p class="muted small">Used for downloads made by the helper. Plain files from "Videos found" go to Chrome's download folder.</p>
+    <label class="check"><input id="use-logins" type="checkbox"> Use my logins for downloads</label>
+    <p class="muted small">Lets the helper see the videos you can see when signed in. Your logins stay on this computer.</p>
   </details>
 
-  <footer class="muted small">Only download what you have the right to keep.</footer>
+  <footer class="muted small">
+    <p id="tip">Tip: right-click any video and choose <strong>Download with Yoink</strong>.</p>
+    <p>Only download what you have the right to keep.</p>
+  </footer>
   <div id="toast" role="status" hidden></div>
 
   <script src="popup.js" type="module"></script>

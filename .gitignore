@@ -1,5 +1,5 @@
 node_modules/
-host/run-host.sh
-host/run-host.bat
-host/com.videodownloader.host.json
+host/run-helper.sh
+host/run-helper.bat
+host/com.yoink.helper.json
 *.download
